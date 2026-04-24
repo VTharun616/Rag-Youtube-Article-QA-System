@@ -1,11 +1,17 @@
+import os
 import streamlit as st
+
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from youtube_transcript_api import YouTubeTranscriptApi
 
-# ---------------- LLM (YOU MUST HAVE THIS ALREADY) ----------------
-# from langchain_google_genai import ChatGoogleGenerativeAI
-# llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key="YOUR_KEY")
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+# ---------------- LLM (FIXED - REQUIRED) ----------------
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    google_api_key=os.getenv("GOOGLE_API_KEY")
+)
 
 # ---------------- STREAMLIT UI ----------------
 st.title("🎥 RAG YouTube + Article QA System")
