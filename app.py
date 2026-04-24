@@ -75,7 +75,7 @@ chat_prompt = ChatPromptTemplate.from_messages([
 chat_chain = chat_prompt | llm | StrOutputParser()
 
 # ---------------- INPUT ----------------
-url = st.text_input("https://youtu.be/-46UkLPf9h0?si=FAoHBj6Cz5iGh8iq")
+url = st.text_input("https://youtu.be/NRmAXDWJVnU?si=YoiiX2Sn3aksFlxJ")
 
 # ---------------- MAIN FLOW ----------------
 if url:
