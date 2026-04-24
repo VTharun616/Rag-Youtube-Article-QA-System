@@ -1,23 +1,49 @@
 # ---------------- IMPORTS ----------------
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import RequestBlocked, TranscriptsDisabled
 
-# llm should already be defined (Gemini / OpenAI etc.)
+# llm must already be defined (Gemini / OpenAI etc.)
 
-# ---------------- SAMPLE ARTICLE (replace with your actual article/transcript) ----------------
-article = article if article else "No article available."
+# ---------------- GET YOUTUBE TRANSCRIPT ----------------
+def get_youtube_text(video_id):
+    try:
+        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        text = " ".join([t["text"] for t in transcript])
+        return text
 
-# ---------------- QA SYSTEM PROMPT ----------------
+    except (RequestBlocked, TranscriptsDisabled):
+        return ""
+
+    except Exception:
+        return ""
+
+
+# ---------------- INPUT ----------------
+youtube_url = input("https://youtu.be/-46UkLPf9h0?si=FAoHBj6Cz5iGh8iq")
+
+# extract video id (simple version)
+video_id = youtube_url.split("v=")[-1].split("&")[0]
+
+article = get_youtube_text(video_id)
+
+# fallback safety
+if not article:
+    article = "No transcript available for this video."
+
+
+# ---------------- QA PROMPT ----------------
 qa_system_message = """
 You are an AI assistant.
 
 STRICT RULES:
-- Use ONLY the given article
+- Use ONLY the given content
 - Do NOT add external knowledge
 """
 
 qa_human_message = """
-Generate 5 high-quality questions and answers from the article.
+Generate 5 high-quality questions and answers.
 
 Format:
 Q1:
@@ -28,7 +54,7 @@ A2:
 
 ...
 
-Article:
+Content:
 {context}
 """
 
@@ -37,8 +63,8 @@ qa_prompt = ChatPromptTemplate.from_messages([
     HumanMessagePromptTemplate.from_template(qa_human_message)
 ])
 
-# ---------------- QA CHAIN ----------------
 qa_chain = qa_prompt | llm | StrOutputParser()
+
 
 # ---------------- GENERATE Q&A ----------------
 try:
@@ -49,34 +75,33 @@ try:
     print("\n===== QUESTIONS & ANSWERS =====\n")
     print(qa_result)
 
-    # Save Q&A
     with open("qa.txt", "w", encoding="utf-8") as f:
         f.write(qa_result)
 
 except Exception as e:
-    print("Error generating Q&A:", e)
+    print("QA generation error:", e)
 
 
 # ---------------- CHAT PROMPT ----------------
 chat_prompt = ChatPromptTemplate.from_messages([
     SystemMessagePromptTemplate.from_template(
-        "Answer ONLY using the article. Do not add external knowledge."
+        "Answer ONLY using the provided content. Do not use external knowledge."
     ),
     HumanMessagePromptTemplate.from_template(
-        "Question: {question}\n\nArticle:\n{context}"
+        "Question: {question}\n\nContent:\n{context}"
     )
 ])
 
 chat_chain = chat_prompt | llm | StrOutputParser()
 
+
 # ---------------- CHAT LOOP ----------------
-print("\n🤖 Chatbot ready! Ask questions based on article.")
+print("\n🤖 Chatbot ready! Ask questions based on YouTube video.")
 print("Type 'exit' to stop.\n")
 
 while True:
-    user_query = input("Enter your question: ").strip()
+    user_query = input("Ask: ").strip()
 
-    # exit condition
     if user_query.lower() in ["exit", "quit", "bye"]:
         print("Goodbye 👋")
         break
@@ -90,4 +115,4 @@ while True:
         print("\nAnswer:\n", response, "\n")
 
     except Exception as e:
-        print("Error generating response:", e)
+        print("Error:", e)
