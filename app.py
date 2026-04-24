@@ -1,39 +1,24 @@
-# ---------------- IMPORTS ----------------
+import streamlit as st
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import RequestBlocked, TranscriptsDisabled
 
-# llm must already be defined (Gemini / OpenAI etc.)
+# ---------------- LLM (YOU MUST HAVE THIS ALREADY) ----------------
+# from langchain_google_genai import ChatGoogleGenerativeAI
+# llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key="YOUR_KEY")
 
-# ---------------- GET YOUTUBE TRANSCRIPT ----------------
+# ---------------- STREAMLIT UI ----------------
+st.title("🎥 RAG YouTube + Article QA System")
+
+# ---------------- SAFE YOUTUBE LOADER ----------------
 def get_youtube_text(video_id):
     try:
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        text = " ".join([t["text"] for t in transcript])
-        return text
-
-    except (RequestBlocked, TranscriptsDisabled):
-        return ""
-
+        return " ".join([t["text"] for t in transcript])
     except Exception:
         return ""
 
-
-# ---------------- INPUT ----------------
-youtube_url = input("https://youtu.be/-46UkLPf9h0?si=FAoHBj6Cz5iGh8iq")
-
-# extract video id (simple version)
-video_id = youtube_url.split("v=")[-1].split("&")[0]
-
-article = get_youtube_text(video_id)
-
-# fallback safety
-if not article:
-    article = "No transcript available for this video."
-
-
-# ---------------- QA PROMPT ----------------
+# ---------------- PROMPTS ----------------
 qa_system_message = """
 You are an AI assistant.
 
@@ -52,7 +37,14 @@ A1:
 Q2:
 A2:
 
-...
+Q3:
+A3:
+
+Q4:
+A4:
+
+Q5:
+A5:
 
 Content:
 {context}
@@ -65,27 +57,9 @@ qa_prompt = ChatPromptTemplate.from_messages([
 
 qa_chain = qa_prompt | llm | StrOutputParser()
 
-
-# ---------------- GENERATE Q&A ----------------
-try:
-    qa_result = qa_chain.invoke({
-        "context": article
-    })
-
-    print("\n===== QUESTIONS & ANSWERS =====\n")
-    print(qa_result)
-
-    with open("qa.txt", "w", encoding="utf-8") as f:
-        f.write(qa_result)
-
-except Exception as e:
-    print("QA generation error:", e)
-
-
-# ---------------- CHAT PROMPT ----------------
 chat_prompt = ChatPromptTemplate.from_messages([
     SystemMessagePromptTemplate.from_template(
-        "Answer ONLY using the provided content. Do not use external knowledge."
+        "Answer ONLY using the given content. Do not use external knowledge."
     ),
     HumanMessagePromptTemplate.from_template(
         "Question: {question}\n\nContent:\n{context}"
@@ -94,25 +68,50 @@ chat_prompt = ChatPromptTemplate.from_messages([
 
 chat_chain = chat_prompt | llm | StrOutputParser()
 
+# ---------------- INPUT ----------------
+url = st.text_input("https://youtu.be/-46UkLPf9h0?si=FAoHBj6Cz5iGh8iq")
 
-# ---------------- CHAT LOOP ----------------
-print("\n🤖 Chatbot ready! Ask questions based on YouTube video.")
-print("Type 'exit' to stop.\n")
-
-while True:
-    user_query = input("Ask: ").strip()
-
-    if user_query.lower() in ["exit", "quit", "bye"]:
-        print("Goodbye 👋")
-        break
-
+# ---------------- MAIN FLOW ----------------
+if url:
     try:
-        response = chat_chain.invoke({
-            "question": user_query,
-            "context": article
-        })
+        video_id = url.split("v=")[-1].split("&")[0]
 
-        print("\nAnswer:\n", response, "\n")
+        with st.spinner("Fetching transcript..."):
+            article = get_youtube_text(video_id)
+
+        if not article:
+            st.error("❌ Transcript not available for this video.")
+        else:
+            st.success("✅ Transcript loaded successfully")
+
+            # ---------------- QA GENERATION ----------------
+            with st.spinner("Generating Q&A..."):
+                qa_result = qa_chain.invoke({"context": article})
+
+            st.subheader("📌 Generated Q&A")
+            st.text_area("Q&A Output", qa_result, height=300)
+
+            st.download_button(
+                label="⬇ Download Q&A",
+                data=qa_result,
+                file_name="qa.txt",
+                mime="text/plain"
+            )
+
+            # ---------------- CHAT SECTION ----------------
+            st.subheader("💬 Ask Questions")
+
+            user_query = st.text_input("Ask something from the video")
+
+            if user_query:
+                with st.spinner("Thinking..."):
+                    response = chat_chain.invoke({
+                        "question": user_query,
+                        "context": article
+                    })
+
+                st.write("### Answer:")
+                st.write(response)
 
     except Exception as e:
-        print("Error:", e)
+        st.error(f"Error: {str(e)}")
