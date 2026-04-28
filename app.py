@@ -7,7 +7,7 @@ client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])  # 🔴 PASTE YOUR K
 
 def ask_llm(prompt):
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
         contents=prompt
     )
     return response.text
