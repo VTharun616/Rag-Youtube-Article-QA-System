@@ -58,17 +58,21 @@ if url:
         st.success("System ready ✅")
 
         # ---------------- IMPROVED PROMPT ----------------
-        prompt = f"""
-You are a YouTube AI assistant.
+       prompt = """
+You are a YouTube Video AI assistant.
 
-Use ONLY the transcript below:
+You will be given transcript text from a YouTube video.
 
-{article}
+Your job:
+1. Understand the video content deeply
+2. Generate accurate and useful Q&A
+3. Always keep answers grounded ONLY in transcript
+4. If possible, refer to parts of the video using context (timestamps or video link if available)
+5. Do NOT invent information outside the transcript
 
-Task:
-1. Generate 5 important Q&A
-2. Keep answers simple and accurate
-3. If possible, relate answers to the video content
+Format:
+- Clear question
+- Short, simple answer
 """
 
         qa_result = ask_llm(prompt)
