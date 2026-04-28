@@ -3,7 +3,7 @@ from google import genai
 from youtube_transcript_api import YouTubeTranscriptApi
 
 # ---------------- GEMINI SETUP ----------------
-client = genai.Client(api_key="api_key")  # 🔴 PASTE YOUR KEY HERE
+client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])  # 🔴 PASTE YOUR KEY HERE
 
 def ask_llm(prompt):
     response = client.models.generate_content(
