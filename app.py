@@ -1,70 +1,58 @@
 import streamlit as st
-import os
+from google import genai
 
-from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from youtube_transcript_api import YouTubeTranscriptApi
+# ---------------- GEMINI SETUP ----------------
+client = genai.Client(api_key="GOOGLE_API_KEY")  # replace this
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+def ask_llm(prompt):
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=prompt
+    )
+    return response.text
 
-# ---------------- LLM ----------------
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
-    google_api_key=os.getenv("GOOGLE_API_KEY")
-)
-
-# ---------------- UI ----------------
+# ---------------- STREAMLIT UI ----------------
 st.title("🎥 Stable RAG YouTube + Article QA System")
 
-# ---------------- SAFE YOUTUBE FUNCTION ----------------
-def get_youtube_text(video_id):
-    try:
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        return " ".join([t["text"] for t in transcript])
-    except:
-        return None
-
-# ---------------- INPUT ----------------
 url = st.text_input("https://youtu.be/-46UkLPf9h0?si=FAoHBj6Cz5iGh8iq")
 
 article = None
 
 # ---------------- MAIN LOGIC ----------------
 if url:
+
     try:
-        video_id = url.split("v=")[-1].split("&")[0]
+        # ---------------- Extract Video ID ----------------
+        if "youtu.be" in url:
+            video_id = url.split("/")[-1].split("?")[0]
+        else:
+            video_id = url.split("v=")[-1].split("&")[0]
 
+        # ---------------- Get Transcript ----------------
         with st.spinner("Fetching transcript..."):
-            article = get_youtube_text(video_id)
+            article = get_youtube_text(video_id)   # your function
 
-        # ---------------- FALLBACK SYSTEM (VERY IMPORTANT) ----------------
+        # ---------------- FALLBACK ----------------
         if not article:
             st.warning("⚠ YouTube blocked or no transcript found. Using demo content.")
 
             article = """
-            Generative AI is a branch of artificial intelligence that creates new content such as text, images, and code.
+            Generative AI is a branch of AI that creates text, images, and code.
 
-            Large Language Models (LLMs) like GPT are trained on massive datasets to understand and generate human-like text.
+            Large Language Models (LLMs) learn patterns from large datasets.
 
-            Retrieval Augmented Generation (RAG) improves AI responses by retrieving relevant documents before generating answers.
+            Retrieval Augmented Generation (RAG) improves accuracy using external knowledge retrieval.
             """
 
         st.success("System ready ✅")
 
-        # ---------------- QA PROMPT ----------------
-        qa_prompt = ChatPromptTemplate.from_messages([
-            SystemMessagePromptTemplate.from_template(
-                "You are an AI assistant. Use ONLY the given content."
-            ),
-            HumanMessagePromptTemplate.from_template(
-                "Generate 5 Q&A from this content:\n\n{context}"
-            )
-        ])
-
-        qa_chain = qa_prompt | llm | StrOutputParser()
-
+        # ---------------- Q&A GENERATION ----------------
         with st.spinner("Generating Q&A..."):
-            qa_result = qa_chain.invoke({"context": article})
+            qa_result = ask_llm(f"""
+Generate 5 question and answer pairs from the following content:
+
+{article}
+""")
 
         st.subheader("📌 Generated Q&A")
         st.text_area("Output", qa_result, height=300)
@@ -81,21 +69,15 @@ if url:
         user_query = st.text_input("Ask something from the content")
 
         if user_query:
-            chat_prompt = ChatPromptTemplate.from_messages([
-                SystemMessagePromptTemplate.from_template(
-                    "Answer ONLY using the given content."
-                ),
-                HumanMessagePromptTemplate.from_template(
-                    "Question: {question}\n\nContent:\n{context}"
-                )
-            ])
+            response = ask_llm(f"""
+Answer ONLY using the given content.
 
-            chat_chain = chat_prompt | llm | StrOutputParser()
+CONTENT:
+{article}
 
-            response = chat_chain.invoke({
-                "question": user_query,
-                "context": article
-            })
+QUESTION:
+{user_query}
+""")
 
             st.write("### Answer:")
             st.write(response)
