@@ -3,11 +3,11 @@ from google import genai
 from youtube_transcript_api import YouTubeTranscriptApi
 
 # ---------------- GEMINI SETUP ----------------
-client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])  # 🔴 PASTE YOUR KEY HERE
+client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
 
 def ask_llm(prompt):
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-2.5-flash",  # safer than 2.5 for now
         contents=prompt
     )
     return response.text
@@ -16,7 +16,8 @@ def ask_llm(prompt):
 def get_youtube_text(video_id):
     try:
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        return " ".join([item["text"] for item in transcript])
+        text = " ".join([item["text"] for item in transcript])
+        return text
     except:
         return None
 
@@ -37,6 +38,10 @@ if url:
         else:
             video_id = url.split("v=")[-1].split("&")[0]
 
+        video_link = f"https://www.youtube.com/watch?v={video_id}"
+
+        st.video(video_link)  # ✅ FIX: show video
+
         # Get transcript
         with st.spinner("Fetching transcript..."):
             article = get_youtube_text(video_id)
@@ -44,7 +49,6 @@ if url:
         # Fallback
         if not article:
             st.warning("⚠ No transcript found. Using demo content.")
-
             article = """
             Generative AI creates text, images, and code.
             LLMs learn patterns from data.
@@ -53,39 +57,28 @@ if url:
 
         st.success("System ready ✅")
 
-        # ---------------- Q&A ----------------
-        qa_result = ask_llm(f"""
-Generate 5 Q&A from this content:
+        # ---------------- IMPROVED PROMPT ----------------
+        prompt = f"""
+You are a YouTube AI assistant.
+
+Use ONLY the transcript below:
 
 {article}
-""")
 
+Task:
+1. Generate 5 important Q&A
+2. Keep answers simple and accurate
+3. If possible, relate answers to the video content
+"""
+
+        qa_result = ask_llm(prompt)
+
+        # ---------------- OUTPUT ----------------
         st.subheader("📌 Generated Q&A")
         st.text_area("Output", qa_result, height=300)
 
-        st.download_button(
-            "⬇ Download Q&A",
-            qa_result,
-            file_name="qa.txt"
-        )
-
-        # ---------------- CHAT ----------------
-        st.subheader("💬 Ask Questions")
-
-        user_query = st.text_input("Ask something")
-
-        if user_query:
-            response = ask_llm(f"""
-Answer ONLY using this content:
-
-{article}
-
-Question:
-{user_query}
-""")
-
-            st.write("### Answer:")
-            st.write(response)
+        st.markdown("## 🎥 Video Link")
+        st.markdown(video_link)
 
     except Exception as e:
-        st.error(f"Error: {str(e)}")
+        st.error(f"Error: {e}")
