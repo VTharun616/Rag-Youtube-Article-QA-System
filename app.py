@@ -24,7 +24,7 @@ def get_youtube_text(video_id):
 # ---------------- STREAMLIT UI ----------------
 st.title("🎥 YouTube RAG QA System")
 
-url = st.text_input("https://youtu.be/-46UkLPf9h0?si=FAoHBj6Cz5iGh8iq")
+url = st.text_input("https://youtu.be/T-D1OfcDW1M?si=HWrWE5aY7ecTOBto")
 
 article = None
 
