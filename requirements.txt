@@ -1,8 +1,8 @@
 streamlit
-langchain
-langchain-google-genai
-langchain-community
+google-genai
 youtube-transcript-api
 faiss-cpu
 sentence-transformers
 python-dotenv
+langchain
+langchain-community
