@@ -58,7 +58,7 @@ if url:
         st.success("System ready ✅")
 
         # ---------------- IMPROVED PROMPT ----------------
-       prompt = """
+        prompt = """
 You are a YouTube Video AI assistant.
 
 You will be given transcript text from a YouTube video.
