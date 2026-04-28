@@ -1,8 +1,5 @@
 streamlit
 google-genai
 youtube-transcript-api
-faiss-cpu
-sentence-transformers
-python-dotenv
-langchain
-langchain-community
+openai-whisper
+ffmpeg-python
