@@ -3,7 +3,7 @@ from google import genai
 from youtube_transcript_api import YouTubeTranscriptApi
 
 # ---------------- GEMINI SETUP ----------------
-client = genai.Client(api_key="GOOGLE_API_KEY")  # 🔴 replace this
+client = genai.Client(api_key="GOOGLE_API_KEY")  # 🔴 PASTE YOUR KEY HERE
 
 def ask_llm(prompt):
     response = client.models.generate_content(
@@ -12,17 +12,16 @@ def ask_llm(prompt):
     )
     return response.text
 
-# ---------------- YOUTUBE TRANSCRIPT FUNCTION ----------------
+# ---------------- YOUTUBE TRANSCRIPT ----------------
 def get_youtube_text(video_id):
     try:
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        text = " ".join([item["text"] for item in transcript])
-        return text
+        return " ".join([item["text"] for item in transcript])
     except:
         return None
 
 # ---------------- STREAMLIT UI ----------------
-st.title("🎥 Stable RAG YouTube + Article QA System")
+st.title("🎥 YouTube RAG QA System")
 
 url = st.text_input("https://youtu.be/-46UkLPf9h0?si=FAoHBj6Cz5iGh8iq")
 
@@ -32,39 +31,34 @@ article = None
 if url:
 
     try:
-        # ---------------- Extract Video ID ----------------
+        # Extract video ID
         if "youtu.be" in url:
             video_id = url.split("/")[-1].split("?")[0]
         else:
             video_id = url.split("v=")[-1].split("&")[0]
 
-        # ---------------- Fetch Transcript ----------------
+        # Get transcript
         with st.spinner("Fetching transcript..."):
             article = get_youtube_text(video_id)
 
-        # ---------------- Fallback ----------------
+        # Fallback
         if not article:
             st.warning("⚠ No transcript found. Using demo content.")
 
             article = """
-            Generative AI is a branch of artificial intelligence that creates text, images, and code.
-
-            Large Language Models learn from huge datasets.
-
-            Retrieval Augmented Generation improves accuracy using external knowledge.
+            Generative AI creates text, images, and code.
+            LLMs learn patterns from data.
+            RAG improves AI using retrieval.
             """
 
         st.success("System ready ✅")
 
-        # ---------------- Q&A GENERATION ----------------
-        with st.spinner("Generating Q&A..."):
-            qa_prompt = f"""
-Generate 5 question and answer pairs from this content:
+        # ---------------- Q&A ----------------
+        qa_result = ask_llm(f"""
+Generate 5 Q&A from this content:
 
 {article}
-"""
-
-            qa_result = ask_llm(qa_prompt)
+""")
 
         st.subheader("📌 Generated Q&A")
         st.text_area("Output", qa_result, height=300)
@@ -75,23 +69,20 @@ Generate 5 question and answer pairs from this content:
             file_name="qa.txt"
         )
 
-        # ---------------- CHAT SECTION ----------------
+        # ---------------- CHAT ----------------
         st.subheader("💬 Ask Questions")
 
-        user_query = st.text_input("Ask something from the video")
+        user_query = st.text_input("Ask something")
 
         if user_query:
-            chat_prompt = f"""
-Answer ONLY using the content below:
+            response = ask_llm(f"""
+Answer ONLY using this content:
 
-CONTENT:
 {article}
 
-QUESTION:
+Question:
 {user_query}
-"""
-
-            response = ask_llm(chat_prompt)
+""")
 
             st.write("### Answer:")
             st.write(response)
