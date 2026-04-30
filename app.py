@@ -1,88 +1,92 @@
+import os
 import streamlit as st
-from google import genai
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
 from youtube_transcript_api import YouTubeTranscriptApi
 
-# ---------------- GEMINI SETUP ----------------
-client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
+# -----------------------------
+# API KEY
+# -----------------------------
+api_key = os.getenv("GOOGLE_API_KEY")
 
-def ask_llm(prompt):
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",  # safer than 2.5 for now
-        contents=prompt
-    )
-    return response.text
+if not api_key:
+    st.error("Missing GOOGLE_API_KEY in Secrets")
+    st.stop()
 
-# ---------------- YOUTUBE TRANSCRIPT ----------------
-def get_youtube_text(video_id):
-    try:
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        text = " ".join([item["text"] for item in transcript])
-        return text
-    except:
-        return None
+# -----------------------------
+# LLM
+# -----------------------------
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    google_api_key=api_key
+)
 
-# ---------------- STREAMLIT UI ----------------
-st.title("🎥 YouTube RAG QA System")
+# -----------------------------
+# EMBEDDINGS
+# -----------------------------
+embeddings = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
+)
 
-url = st.text_input("https://youtu.be/T-D1OfcDW1M?si=HWrWE5aY7ecTOBto")
+# -----------------------------
+# GET TRANSCRIPT
+# -----------------------------
+def get_text(video_url):
+    video_id = video_url.split("v=")[-1]
+    transcript = YouTubeTranscriptApi.get_transcript(video_id)
+    return " ".join([t["text"] for t in transcript])
 
-article = None
+# -----------------------------
+# UI
+# -----------------------------
+st.title("🎥 YouTube RAG Chatbot")
 
-# ---------------- MAIN LOGIC ----------------
+url = st.text_input("Paste YouTube Link")
+
 if url:
+    text = get_text(url)
 
-    try:
-        # Extract video ID
-        if "youtu.be" in url:
-            video_id = url.split("/")[-1].split("?")[0]
-        else:
-            video_id = url.split("v=")[-1].split("&")[0]
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200
+    )
 
-        video_link = f"https://www.youtube.com/watch?v={video_id}"
+    chunks = splitter.create_documents([text])
 
-        st.video(video_link)  # ✅ FIX: show video
+    db = FAISS.from_documents(chunks, embeddings)
+    retriever = db.as_retriever(k=4)
 
-        # Get transcript
-        with st.spinner("Fetching transcript..."):
-            article = get_youtube_text(video_id)
+    if "chat" not in st.session_state:
+        st.session_state.chat = []
 
-        # Fallback
-        if not article:
-            st.warning("⚠ No transcript found. Using demo content.")
-            article = """
-            Generative AI creates text, images, and code.
-            LLMs learn patterns from data.
-            RAG improves AI using retrieval.
-            """
+    for msg in st.session_state.chat:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-        st.success("System ready ✅")
+    query = st.chat_input("Ask something about video")
 
-        # ---------------- IMPROVED PROMPT ----------------
-        prompt = """
-You are a YouTube Video AI assistant.
+    if query:
+        st.session_state.chat.append({"role": "user", "content": query})
 
-You will be given transcript text from a YouTube video.
+        docs = retriever.invoke(query)
+        context = "\n".join([d.page_content for d in docs])
 
-Your job:
-1. Understand the video content deeply
-2. Generate accurate and useful Q&A
-3. Always keep answers grounded ONLY in transcript
-4. If possible, refer to parts of the video using context (timestamps or video link if available)
-5. Do NOT invent information outside the transcript
+        prompt = f"""
+        Answer using only this video content:
 
-Format:
-- Clear question
-- Short, simple answer
-"""
+        {context}
 
-        qa_result = ask_llm(prompt)
+        Question: {query}
+        """
 
-        # ---------------- OUTPUT ----------------
-        st.subheader("📌 Generated Q&A")
-        st.text_area("Output", qa_result, height=300)
+        response = llm.invoke(prompt)
 
-        st.markdown("## 🎥 Video Link")
-        st.markdown(video_link)
+        st.session_state.chat.append(
+            {"role": "assistant", "content": response.content}
+        )
 
-    except Exception as e:
-        st.error(f"Error: {e}")
+        with st.chat_message("assistant"):
+            st.markdown(response.content)
