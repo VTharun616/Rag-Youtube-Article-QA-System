@@ -1,9 +1,6 @@
 import os
 import streamlit as st
 
-from yt_dlp import YoutubeDL
-import whisper
-
 from youtube_transcript_api import YouTubeTranscriptApi
 
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -12,7 +9,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # -----------------------------
-# LLM
+# API KEY
 # -----------------------------
 api_key = os.getenv("GOOGLE_API_KEY")
 
@@ -20,6 +17,9 @@ if not api_key:
     st.error("GOOGLE_API_KEY missing in Secrets")
     st.stop()
 
+# -----------------------------
+# LLM
+# -----------------------------
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     google_api_key=api_key
@@ -33,33 +33,7 @@ embeddings = HuggingFaceEmbeddings(
 )
 
 # -----------------------------
-# DOWNLOAD AUDIO (YT-DLP)
-# -----------------------------
-def download_audio(youtube_url):
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': 'audio.%(ext)s',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-        }]
-    }
-
-    with YoutubeDL(ydl_opts) as ydl:
-        ydl.download([youtube_url])
-
-    return "audio.mp3"
-
-# -----------------------------
-# WHISPER TRANSCRIPTION
-# -----------------------------
-def audio_to_text(audio_path):
-    model = whisper.load_model("base")
-    result = model.transcribe(audio_path)
-    return result["text"]
-
-# -----------------------------
-# YOUTUBE TRANSCRIPT (FAST PATH)
+# GET TRANSCRIPT ONLY (SAFE)
 # -----------------------------
 def get_transcript(video_url):
     try:
@@ -69,11 +43,12 @@ def get_transcript(video_url):
             video_id = video_url.split("/")[-1]
 
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        text = " ".join([t["text"] for t in transcript])
-        return text
 
-    except:
-        return None
+        text = " ".join([t["text"] for t in transcript])
+        return text, None
+
+    except Exception:
+        return None, "❌ No transcript available for this video. Try another video with captions."
 
 # -----------------------------
 # BUILD VECTOR DB
@@ -91,7 +66,9 @@ def build_db(text):
 # -----------------------------
 # STREAMLIT UI
 # -----------------------------
-st.title("🎥 YouTube RAG (Transcript + Whisper Fallback)")
+st.title("🎥 YouTube QA RAG System (Stable Version)")
+
+st.info("👉 Use videos with captions enabled (educational videos work best)")
 
 url = st.text_input("Paste YouTube Link")
 
@@ -99,21 +76,16 @@ if url:
 
     with st.spinner("Processing video... ⏳"):
 
-        # STEP 1: try transcript
-        text = get_transcript(url)
+        text, error = get_transcript(url)
 
-        # STEP 2: fallback to Whisper if needed
-        if not text:
-            st.warning("Transcript not found. Using Whisper... 🎤")
+        if error:
+            st.error(error)
+            st.stop()
 
-            audio_file = download_audio(url)
-            text = audio_to_text(audio_file)
-
-        # STEP 3: build RAG
         db = build_db(text)
         retriever = db.as_retriever(search_kwargs={"k": 4})
 
-        st.success("Ready! Ask questions 👇")
+        st.success("✅ Video loaded successfully!")
 
         if "chat" not in st.session_state:
             st.session_state.chat = []
@@ -122,7 +94,7 @@ if url:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-        query = st.chat_input("Ask something about the video")
+        query = st.chat_input("Ask a question about the video")
 
         if query:
             st.session_state.chat.append({"role": "user", "content": query})
@@ -131,7 +103,7 @@ if url:
             context = "\n".join([d.page_content for d in docs])
 
             prompt = f"""
-            Answer only using this context:
+            Answer ONLY using the video context below:
 
             {context}
 
