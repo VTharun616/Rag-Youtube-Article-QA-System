@@ -33,7 +33,7 @@ embeddings = HuggingFaceEmbeddings(
 )
 
 # -----------------------------
-# GET TRANSCRIPT ONLY (SAFE)
+# GET TRANSCRIPT (ONLY)
 # -----------------------------
 def get_transcript(video_url):
     try:
@@ -48,7 +48,7 @@ def get_transcript(video_url):
         return text, None
 
     except Exception:
-        return None, "❌ No transcript available for this video. Try another video with captions."
+        return None, "❌ No transcript available for this video"
 
 # -----------------------------
 # BUILD VECTOR DB
@@ -66,7 +66,7 @@ def build_db(text):
 # -----------------------------
 # STREAMLIT UI
 # -----------------------------
-st.title("🎥 YouTube QA RAG System (Stable Version)")
+st.title("🎥 YouTube QA RAG System")
 
 st.info("👉 Use videos with captions enabled (educational videos work best)")
 
@@ -94,7 +94,7 @@ if url:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-        query = st.chat_input("Ask a question about the video")
+        query = st.chat_input("Ask something about the video")
 
         if query:
             st.session_state.chat.append({"role": "user", "content": query})
@@ -103,7 +103,7 @@ if url:
             context = "\n".join([d.page_content for d in docs])
 
             prompt = f"""
-            Answer ONLY using the video context below:
+            Answer ONLY using the video context:
 
             {context}
 
