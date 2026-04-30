@@ -1,7 +1,11 @@
 import os
 import streamlit as st
 
-from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api import (
+    YouTubeTranscriptApi,
+    TranscriptsDisabled,
+    NoTranscriptFound
+)
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -33,22 +37,44 @@ embeddings = HuggingFaceEmbeddings(
 )
 
 # -----------------------------
-# GET TRANSCRIPT (ONLY)
+# ROBUST TRANSCRIPT FUNCTION (FIXED)
 # -----------------------------
 def get_transcript(video_url):
     try:
+        # extract video id
         if "v=" in video_url:
             video_id = video_url.split("v=")[-1].split("&")[0]
         else:
             video_id = video_url.split("/")[-1]
 
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript = None
+
+        # STEP 1: normal fetch
+        try:
+            transcript = YouTubeTranscriptApi.get_transcript(video_id)
+
+        except Exception:
+            # STEP 2: fallback to ALL transcripts (IMPORTANT FIX)
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+
+            for t in transcript_list:
+                transcript = t.fetch()
+                break
+
+        if not transcript:
+            return None, "❌ No transcript available"
 
         text = " ".join([t["text"] for t in transcript])
         return text, None
 
-    except Exception:
-        return None, "❌ No transcript available for this video"
+    except TranscriptsDisabled:
+        return None, "❌ Transcripts are disabled for this video"
+
+    except NoTranscriptFound:
+        return None, "❌ No transcript found"
+
+    except Exception as e:
+        return None, f"❌ Error: {str(e)}"
 
 # -----------------------------
 # BUILD VECTOR DB
@@ -66,9 +92,9 @@ def build_db(text):
 # -----------------------------
 # STREAMLIT UI
 # -----------------------------
-st.title("🎥 YouTube QA RAG System")
+st.title("🎥 YouTube QA RAG System (Fixed Version)")
 
-st.info("👉 Use videos with captions enabled (educational videos work best)")
+st.info("👉 Use educational videos with captions for best results")
 
 url = st.text_input("Paste YouTube Link")
 
@@ -103,7 +129,7 @@ if url:
             context = "\n".join([d.page_content for d in docs])
 
             prompt = f"""
-            Answer ONLY using the video context:
+            Answer ONLY using the context below:
 
             {context}
 
