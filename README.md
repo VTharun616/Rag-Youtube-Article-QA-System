@@ -1,4 +1,5 @@
 📺 YouTube Transcript to Article & Q&A RAG System using LangChain and Gemini
+
 🚀 Project Overview
 This project is an AI-powered Retrieval-Augmented Generation (RAG) system that processes YouTube video content and transforms it into structured articles and a question-answering system. It uses LLMs to understand video transcripts and generate human-like responses based strictly on extracted context.
 
